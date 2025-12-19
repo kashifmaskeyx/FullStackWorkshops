@@ -1,10 +1,10 @@
 <?php
 $name = $email = $password = "";
 $nameErr = $emailErr = $passwordErr = $confirmPasswordErr = "";
+$success = false;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    
-  
+
     if (empty($_POST["name"])) {
         $nameErr = "Name is required";
     } else {
@@ -13,8 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $nameErr = "Name must be at least 2 characters";
         }
     }
-    
-   
+
     if (empty($_POST["email"])) {
         $emailErr = "Email is required";
     } else {
@@ -23,13 +22,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $emailErr = "Invalid email format";
         }
     }
-    
 
     if (empty($_POST["password"])) {
         $passwordErr = "Password is required";
     } else {
         $password = $_POST["password"];
-        
         if (strlen($password) < 8) {
             $passwordErr = "Password must be at least 8 characters";
         } elseif (!preg_match("/[a-zA-Z]/", $password)) {
@@ -40,8 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $passwordErr = "Password must contain at least one special character";
         }
     }
-    
-   
+
     if (empty($_POST["confirm_password"])) {
         $confirmPasswordErr = "Please confirm your password";
     } else {
@@ -50,46 +46,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $confirmPasswordErr = "Passwords do not match";
         }
     }
-    
-   
+
     if (empty($nameErr) && empty($emailErr) && empty($passwordErr) && empty($confirmPasswordErr)) {
-        
+
         $filename = "users.json";
-        
-       
+
         if (!file_exists($filename)) {
-            file_put_contents($filename, json_encode([]));
+            if (file_put_contents($filename, json_encode([])) === false) {
+                die("File creation failed");
+            }
         }
-        
-        
+
         $json_data = file_get_contents($filename);
-        
-        
+        if ($json_data === false) {
+            die("File read failed");
+        }
+
         $users = json_decode($json_data, true);
-        
-        
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-       
-        $new_user = array(
-            "name" => $name,
-            "email" => $email,
-            "password" => $hashed_password,
-            "registered_at" => date("Y-m-d H:i:s")
-        );
-        
-        
-        $users[] = $new_user;
-        
-       
-        file_put_contents($filename, json_encode($users, JSON_PRETTY_PRINT));
-        
-        $success = true;
-        $name = $email = "";
+        if ($users === null && json_last_error() !== JSON_ERROR_NONE) {
+            die("JSON decode error");
+        }
+
+        foreach ($users as $user) {
+            if ($user["email"] === $email) {
+                $emailErr = "Email already registered";
+                break;
+            }
+        }
+
+        if (empty($emailErr)) {
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+            $new_user = [
+                "name" => $name,
+                "email" => $email,
+                "password" => $hashed_password,
+                "registered_at" => date("Y-m-d H:i:s")
+            ];
+
+            $users[] = $new_user;
+
+            if (file_put_contents($filename, json_encode($users, JSON_PRETTY_PRINT)) === false) {
+                die("File write failed");
+            }
+
+            $success = true;
+            $name = $email = "";
+        }
     }
 }
-
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -143,9 +149,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <h2>User Registration</h2>
-    
-    <?php if (!empty($success)): ?>
 
+    <?php if ($success): ?>
         <div class="success">Registration successful!</div>
     <?php endif; ?>
 
@@ -153,23 +158,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <label>Name:</label>
         <input type="text" name="name" value="<?php echo htmlspecialchars($name); ?>">
         <span class="error"><?php echo $nameErr; ?></span>
-        
+
         <label>Email:</label>
         <input type="email" name="email" value="<?php echo htmlspecialchars($email); ?>">
         <span class="error"><?php echo $emailErr; ?></span>
-        
+
         <label>Password:</label>
         <input type="password" name="password">
         <span class="error"><?php echo $passwordErr; ?></span>
-        
+
         <label>Confirm Password:</label>
         <input type="password" name="confirm_password">
         <span class="error"><?php echo $confirmPasswordErr; ?></span>
-        
+
         <input type="submit" value="Register">
     </form>
 </body>
 </html>
-
-
-
